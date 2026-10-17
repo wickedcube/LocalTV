@@ -1,0 +1,71 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>TV</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: sans-serif; overflow: hidden; cursor: none; }
+  video { width: 100vw; height: 100vh; background: #000; object-fit: contain; }
+  #msg { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+         font-size: 3vw; text-align: center; background: #000; }
+  #msg small { font-size: 1.8vw; color: #888; margin-top: 1vw; }
+  #msg.hidden { display: none; }
+  #title { position: fixed; left: 3vw; top: 3vw; font-size: 2.4vw; text-shadow: 0 0 8px #000; opacity: 0; transition: opacity .5s; }
+  #title.show { opacity: 1; }
+</style>
+</head>
+<body>
+<video id="v" playsinline></video>
+<div id="title"></div>
+<div id="msg"><div id="big">Connecting…</div><small id="small"></small></div>
+<script>
+const v = document.getElementById('v'), msg = document.getElementById('msg');
+const big = document.getElementById('big'), small = document.getElementById('small'), titleEl = document.getElementById('title');
+let loaded = false, lastReport = 0, titleTimer;
+
+const post = (url, body) => fetch(url, { method: 'POST', body: JSON.stringify(body) }).catch(() => {});
+const report = (extra = {}) => post('/api/report', { time: v.currentTime, duration: v.duration || 0, paused: v.paused, volume: v.volume, ...extra });
+
+function show(text, sub = '') { big.textContent = text; small.textContent = sub; msg.classList.remove('hidden'); }
+function hide() { msg.classList.add('hidden'); }
+
+function tryPlay() {
+  v.play().then(hide).catch(() => show('Press OK / click to start', 'Browsers need one click before playing with sound'));
+}
+msg.addEventListener('click', () => { if (loaded) tryPlay(); });
+document.addEventListener('keydown', () => { if (loaded && v.paused && !msg.classList.contains('hidden')) tryPlay(); });
+
+function flashTitle(t) {
+  titleEl.textContent = t; titleEl.classList.add('show');
+  clearTimeout(titleTimer); titleTimer = setTimeout(() => titleEl.classList.remove('show'), 4000);
+}
+
+const es = new EventSource('/events?role=tv');
+es.addEventListener('open', () => { if (!loaded) show('Ready', 'Pick a video on your phone'); });
+es.addEventListener('cmd', (e) => {
+  const c = JSON.parse(e.data);
+  switch (c.type) {
+    case 'load':
+      loaded = true; v.src = c.src; v.volume = c.volume ?? 1; flashTitle(c.title);
+      v.onloadedmetadata = () => { if (c.time) v.currentTime = c.time; v.onloadedmetadata = null; };
+      c.paused ? v.pause() : tryPlay();
+      break;
+    case 'play': tryPlay(); break;
+    case 'pause': v.pause(); break;
+    case 'seek': v.currentTime = c.time; break;
+    case 'volume': v.volume = c.value; break;
+    case 'stop': loaded = false; v.pause(); v.removeAttribute('src'); v.load(); show('Ready', 'Pick a video on your phone'); break;
+  }
+});
+
+v.addEventListener('timeupdate', () => { const n = Date.now(); if (n - lastReport > 1000) { lastReport = n; report(); } });
+['play', 'pause', 'loadedmetadata', 'volumechange'].forEach((ev) => v.addEventListener(ev, () => report()));
+v.addEventListener('ended', () => report({ ended: true }));
+v.addEventListener('error', () => {
+  const why = v.error && v.error.code === 4 ? 'This format/codec is not supported by the TV browser (try MP4 / H.264 + AAC)' : 'Playback error';
+  show(why); report({ error: why });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,24 @@
+# Dependencies (restored with `npm install`)
+node_modules/
+
+# Build output (created by ./build-app.sh)
+TVUtils.app/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Logs and temp files
+*.log
+*.log.old
+npm-debug.log*
+
+# Local config, secrets and editor / tool state
+.env
+.env.*
+.claude/
+.vscode/
+.idea/
+*.swp
