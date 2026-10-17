@@ -2,7 +2,7 @@
 node_modules/
 
 # Build output (created by ./build-app.sh)
-TVUtils.app/
+LocalTV.app/
 
 # macOS
 .DS_Store

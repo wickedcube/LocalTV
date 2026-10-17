@@ -4,8 +4,6 @@ Stream videos from your Mac to your TV over your home network, using your phone 
 
 Pick a video on your phone and it plays on a Chromecast / Google TV / Android TV, on the phone itself, or in a TV's web browser. Files the TV can't play directly (MKV, HEVC, TrueHD, Blu-ray subtitles…) are converted on the fly. No accounts, no cloud, nothing leaves your LAN.
 
-> The macOS menu bar app and its bundle are named **TVUtils**; the repository is **LocalTV**.
-
 ## Features
 
 - **Phone remote** (a web page, nothing to install): browse folders, search across all subfolders, thumbnails and cleaned-up titles, mini-player and full player, light and dark themes.
@@ -30,9 +28,9 @@ Pick a video on your phone and it plays on a Chromecast / Google TV / Android TV
 
 ```bash
 npm install
-./build-app.sh              # builds TVUtils.app (ad-hoc signed)
-cp -R TVUtils.app /Applications/
-open /Applications/TVUtils.app
+./build-app.sh              # builds LocalTV.app (ad-hoc signed)
+cp -R LocalTV.app /Applications/
+open /Applications/LocalTV.app
 ```
 
 Look for the TV icon in the menu bar. Choose your media folder, then **Show QR code for phone…** and scan it. The first launch may need right-click → Open, and macOS will ask for **Local Network** access: allow it, or the Mac can't find your TV.
@@ -64,7 +62,7 @@ Next/previous follow the folder (or the search results when playing from search)
 
 ### Settings
 
-Saved in `~/Library/Application Support/TVUtils/config.json`:
+Saved in `~/Library/Application Support/LocalTV/config.json`:
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -76,11 +74,11 @@ Saved in `~/Library/Application Support/TVUtils/config.json`:
 
 Environment: `PORT` (default `8080`), `MEDIA_DIR`. A folder passed on the command line wins over the config file.
 
-Logs: `~/Library/Logs/TVUtils/server.log`, also in the phone page under Settings → View logs.
+Logs: `~/Library/Logs/LocalTV/server.log`, also in the phone page under Settings → View logs.
 
 ## Troubleshooting
 
-- **TV not listed:** same Wi-Fi network as the Mac, TV awake, and macOS Settings → Privacy & Security → **Local Network** allows TVUtils.
+- **TV not listed:** same Wi-Fi network as the Mac, TV awake, and macOS Settings → Privacy & Security → **Local Network** allows LocalTV.
 - **"Can't reach <TV>"** when casting: the TV is asleep or Local Network access is denied.
 - **TV shows "Android TV Core Services has stopped" while casting:** seen on a low-memory (2 GB) TCL TV when a converted stream declared no duration. This is handled; if it returns, check what changed in the metadata, volume or duration sent to the TV. `adb logcat` shows the receiver flooding notifications ("Shedding") when it happens.
 - **An HDMI device wakes up when casting:** setting the TV's volume wakes some HDMI-CEC audio devices. The server only *reads* the volume at start for this reason.
@@ -99,7 +97,7 @@ public/
   tv.html        fallback player for a TV's browser (/tv)
   hls.min.js     hls.js, for playing converted video in phone browsers
 app/main.swift   macOS menu bar app (launches server.js, QR code, folder, login item)
-build-app.sh     builds TVUtils.app (copies server.js, public/, node_modules/)
+build-app.sh     builds LocalTV.app (copies server.js, public/, node_modules/)
 ```
 
 ## Limitations

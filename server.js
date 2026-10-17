@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// TVUtils: stream videos from this PC to a TV browser, controlled from a phone.
+// LocalTV: stream videos from this Mac to a TV, controlled from a phone.
 // Usage: node server.js [media-folder]     (env: PORT, MEDIA_DIR)
 const http = require('http');
 const fs = require('fs');
@@ -7,7 +7,12 @@ const path = require('path');
 const os = require('os');
 
 // The media folder is shared with the menu bar app through this file (a command-line argument still wins).
-const CONFIG = path.join(os.homedir(), 'Library', 'Application Support', 'TVUtils', 'config.json');
+// One-time move from the app's old name (TVUtils) so existing settings and logs carry over.
+for (const base of ['Application Support', 'Logs']) {
+  const oldDir = path.join(os.homedir(), 'Library', base, 'TVUtils'), newDir = path.join(os.homedir(), 'Library', base, 'LocalTV');
+  try { if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) fs.renameSync(oldDir, newDir); } catch {}
+}
+const CONFIG = path.join(os.homedir(), 'Library', 'Application Support', 'LocalTV', 'config.json');
 const readConfig = () => { try { return JSON.parse(fs.readFileSync(CONFIG, 'utf8')); } catch { return {}; } };
 const saveConfig = (patch) => {
   try { fs.mkdirSync(path.dirname(CONFIG), { recursive: true }); fs.writeFileSync(CONFIG, JSON.stringify({ ...readConfig(), ...patch })); } catch (e) { log('could not save config: ' + e.message); }
@@ -36,7 +41,7 @@ let queue = [];
 let qi = -1;
 const clients = new Set(); // { res, role }
 // Log lines are kept in memory for the phone's log panel and appended to a file, so they survive restarts.
-const LOG_FILE = path.join(os.homedir(), 'Library', 'Logs', 'TVUtils', 'server.log');
+const LOG_FILE = path.join(os.homedir(), 'Library', 'Logs', 'LocalTV', 'server.log');
 const logs = [];
 try {
   fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
@@ -227,7 +232,7 @@ function serveTranscode(req, res, full, start, ai, si) {
 }
 
 // ---- HLS sessions (for playing converted video in a phone's browser) ----------
-const HLS_DIR = path.join(os.tmpdir(), 'tvutils-hls');
+const HLS_DIR = path.join(os.tmpdir(), 'localtv-hls');
 const hls = new Map(); // id → { ff, dir, last }
 fs.rmSync(HLS_DIR, { recursive: true, force: true });
 fs.mkdirSync(HLS_DIR, { recursive: true });
@@ -323,7 +328,7 @@ function castLoad() {
     // Probe the TV's cast port first so a blocked/asleep TV gives a clear error instead of a silent hang.
     const sock = require('net').connect({ host: d.host, port: 8009, timeout: 5000 });
     const bad = (why) => { sock.destroy(); if (gen !== castGen) return; log(`tcp to ${d.host}:8009 FAILED: ${why}`);
-      state.error = `Can't reach ${state.target} (${why}). Check the TV is on, and that macOS Settings → Privacy & Security → Local Network allows TVUtils.`; publish(); };
+      state.error = `Can't reach ${state.target} (${why}). Check the TV is on, and that macOS Settings → Privacy & Security → Local Network allows LocalTV.`; publish(); };
     sock.on('connect', () => {
       sock.destroy();
       if (gen !== castGen) return;
@@ -597,7 +602,7 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/thumb') { // a poster frame for the cast screen and library, cached on disk (max 2 ffmpeg at once)
     const full = safeResolve(url.searchParams.get('path') || '');
     if (!full || !isVideo(full) || !FFMPEG) { res.writeHead(400); return res.end(); }
-    const dirT = path.join(os.tmpdir(), 'tvutils-thumbs'); fs.mkdirSync(dirT, { recursive: true });
+    const dirT = path.join(os.tmpdir(), 'localtv-thumbs'); fs.mkdirSync(dirT, { recursive: true });
     const out = path.join(dirT, require('crypto').createHash('md5').update(full).digest('hex') + '.jpg');
     const send = () => serveFile(req, res, out, { 'Content-Type': 'image/jpeg', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'max-age=86400' });
     if (fs.existsSync(out)) return send();
@@ -683,7 +688,7 @@ const server = http.createServer(async (req, res) => {
     const r = browsable(want);
     if (!r) return json(res, 403, { error: 'not allowed' });
     let entries = [];
-    try { entries = fs.readdirSync(r, { withFileTypes: true }); } catch { return json(res, 403, { error: 'cannot read this folder (macOS may need permission for TVUtils)' }); }
+    try { entries = fs.readdirSync(r, { withFileTypes: true }); } catch { return json(res, 403, { error: 'cannot read this folder (macOS may need permission for LocalTV)' }); }
     const dirs = entries.filter((e) => !e.name.startsWith('.') && (e.isDirectory() || (e.isSymbolicLink() && (() => { try { return fs.statSync(path.join(r, e.name)).isDirectory(); } catch { return false; } })())))
       .map((e) => e.name).sort(naturalSort).map((n) => ({ name: n, path: path.join(r, n) }));
     const top = r === os.homedir() || path.dirname(r) === '/Volumes';
@@ -710,8 +715,8 @@ process.on('uncaughtException', (e) => console.error('uncaught:', e.message));
 setInterval(() => { for (const c of clients) c.res.write(': ping\n\n'); }, 15000);
 
 // When launched by the menu bar app, exit if it goes away so no orphan keeps the port.
-if (process.env.TVUTILS_PARENT) {
-  setInterval(() => { try { process.kill(Number(process.env.TVUTILS_PARENT), 0); } catch { process.exit(0); } }, 2000);
+if (process.env.LOCALTV_PARENT) {
+  setInterval(() => { try { process.kill(Number(process.env.LOCALTV_PARENT), 0); } catch { process.exit(0); } }, 2000);
 }
 
 server.listen(PORT, '0.0.0.0', () => {

@@ -13,7 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var browser: NWBrowser?
 
     // The media folder lives in a file shared with the server, so changing it from the phone is reflected here.
-    let configURL = URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support/TVUtils/config.json")
+    let configURL = URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support/LocalTV/config.json")
     var folder: String {
         get {
             if let d = try? Data(contentsOf: configURL),
@@ -39,8 +39,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ n: Notification) {
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // One-time move from the app's old name (TVUtils) so existing settings and logs carry over.
+        for base in ["Application Support", "Logs"] {
+            let lib = NSHomeDirectory() + "/Library/" + base + "/"
+            if FileManager.default.fileExists(atPath: lib + "TVUtils"), !FileManager.default.fileExists(atPath: lib + "LocalTV") {
+                try? FileManager.default.moveItem(atPath: lib + "TVUtils", toPath: lib + "LocalTV")
+            }
+        }
         if !FileManager.default.fileExists(atPath: configURL.path), let old = defaults.string(forKey: "folder") { folder = old }
-        // Browsing for cast devices from the app itself makes macOS show the Local Network prompt for TVUtils.
+        // Browsing for cast devices from the app itself makes macOS show the Local Network prompt for LocalTV.
         browser = NWBrowser(for: .bonjour(type: "_googlecast._tcp", domain: nil), using: .tcp)
         browser?.browseResultsChangedHandler = { _, _ in }
         browser?.start(queue: .main)
@@ -65,7 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: node)
         p.arguments = [Bundle.main.resourcePath! + "/server.js"]
-        p.environment = ["PORT": String(port), "HOME": NSHomeDirectory(), "TVUTILS_PARENT": String(getpid())]
+        p.environment = ["PORT": String(port), "HOME": NSHomeDirectory(), "LOCALTV_PARENT": String(getpid())]
         let err = Pipe(); p.standardError = err; p.standardOutput = FileHandle.nullDevice
         err.fileHandleForReading.readabilityHandler = { [weak self] h in
             let s = String(data: h.availableData, encoding: .utf8) ?? ""
@@ -86,7 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func holdAwake() {
         guard assertion == 0 else { return }
         IOPMAssertionCreateWithName("PreventUserIdleSystemSleep" as CFString, IOPMAssertionLevel(kIOPMAssertionLevelOn),
-                                    "TVUtils is streaming" as CFString, &assertion)
+                                    "LocalTV is streaming" as CFString, &assertion)
     }
     func releaseAwake() { if assertion != 0 { IOPMAssertionRelease(assertion); assertion = 0 } }
 
@@ -120,7 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: menu
     func rebuild() {
-        item.button?.image = NSImage(systemSymbolName: running ? "tv.fill" : "tv", accessibilityDescription: "TVUtils")
+        item.button?.image = NSImage(systemSymbolName: running ? "tv.fill" : "tv", accessibilityDescription: "LocalTV")
         let m = NSMenu()
         func add(_ t: String, _ sel: Selector?, key: String = "", on: Bool = false, enabled: Bool = true) {
             let mi = NSMenuItem(title: t, action: sel, keyEquivalent: key)
@@ -171,7 +178,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             l.alignment = .center; l.frame = NSRect(x: 10, y: y, width: side + 40, height: size + 8); return l
         }
         let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: side + 60, height: 440), styleMask: [.titled, .closable], backing: .buffered, defer: false)
-        w.title = "TVUtils — open on your phone"
+        w.title = "LocalTV — open on your phone"
         w.contentView?.addSubview(iv)
         w.contentView?.addSubview(label("Scan with your phone camera", y: 400 - 8, size: 15, color: .labelColor))
         w.contentView?.addSubview(label(url, y: 62, size: 13, color: .secondaryLabelColor))
